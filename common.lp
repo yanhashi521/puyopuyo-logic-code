@@ -21,11 +21,11 @@ location(me,5,1,red).
 location(me,6,2,purple).
 location(me,6,1,red).
 
-
 put(me,2,4,red) :- put(me,3,4,red).
 put(me,3,4,red) :- put(me,2,4,red).
 next(me, purple, purple). n_next(me, red, blue).
 cur_col(red,red). next_col(purple, purple ). nnext_col(red, blue).
+
 
 
 location(you,1,6,blue).
@@ -54,122 +54,6 @@ location(you,6,2,red).
 location(you,6,1,red).  
 
 next(you, purple, purple). n_next(you, red, blue).
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%BY OZAKI: check with "test_ex.lp"
-%各種のドメイン
-player(me; you). %プレイヤ
-col(1..6). %列
-row(1..12). %行
-color(red;blue;purple;green). %色
-
-% e^{ctx}として与えるもの
-% セルの基本表現: location(Player, X, Y, C). 
-% 今の色：cur_col( purple, blue ). 
-% 次の色：next_col( red, green).
-% 次の次の色：nnext_col( blue,green).
-
-%
-%関連BK
-%プレイヤー情報を追加するためにPを追加
-%
-cur_col(P, X, Y ):- cur_col(P, Y, X ).
-next_col(P, X, Y ):- next_col(P, Y, X ).
-nnext_col(P, X, Y ):- nnext_col(P, Y, X).
-
-
-%
-%置き方を表す述語 x 2 （引数の数を減らすため）
-%
-put_v(X,C1,C2):- if_put(me, X, Y1, C1,   X, Y2, C2).%縦置き指定
-put_h(X,C1,C2):- if_put(me, X, Y1, C1, X+1, Y2, C2).%横置き指定
-
-
-%%%%%%%%%%%% 繋がり %%%%%%%%%%
-%置ける位置の確認(meのみを対象とする)
-%縦置き
-can_put(P, X, Y, X, Y+1):- P = me, player(P), col(X), row(Y), color(C),
-	   not location(P, X, Y, _), %置こうとしている位置にぷよがない
-	   1{ Y = 0; location(P, X, Y-1, _) }1.%置こうとしている位置がY=0 or 置こうとしているY座標の下にぷよがある
-%横置き
-can_put(P, X, Y1, X+1, Y2):- P = me, player(P), col(X), row(Y1), row(Y2),
-	   not location(P, X,   Y1, _ ), 1{ Y1 = 0; location(P,  X, Y1-1, _ ) }1,%置こうとしている位置にぷよがなく、置こうとしている位置がY=0 or 置こうとしているY座標の下にぷよがある
-   	   not location(P, X+1, Y2, _ ), 1{ Y2 = 0; location(P,X+1, Y2-1, _ ) }1.%Xの隣にぷよがなく、置こうとしている位置がY=0 or 置こうとしているY座標の下にぷよがある
-
-%世界を分ける（置く位置は一つ --> 世界を分ける）
-%仮にここに置いた場合
-1{ if_put(P, X1,Y1,C1,X2,Y2,C2):can_put(P,X1,Y1,X2,Y2), cur_col(C1,C2) } 1.
-%Playerは、X1,Y2にC1色のぷよ、とX2,Y2にC2色のぷよを置くことができるならX1,Y1,
-%現在のぷよの色がC1とC2でX1,Y1とX2,Y2にぷよを置くことができるなら、if_put()が1つ発火する。？
-
-%
-%以下では，
-% meは，T=0, T=1, T=2, .. 
-% youは，T=0
-%
-
-%置く前の状態：T = 0
-location(0, P, X,Y,C):- location(P,X,Y,C).   %置く前の状態(me,you)
-
-%置いた状態： T=1 / if_putを考えるときのみ T=1を考える
-location(1, P, X1, Y1, C1):- if_put(P, X1, Y1, C1, X2, Y2, C2). 
-location(1, P, X2, Y2, C2):- if_put(P, X1, Y1, C1, X2, Y2, C2). 
-location(1, P,  X,  Y,  C):- if_put(P, X1, Y1, C1, X2, Y2, C2),
-	    	    	     location(0,P,X,Y,C), P = me.
-
-%%%辺 = 同じ色の連続の定義（時刻TとプレイヤPでの縛り）
-same_color(T, P, X, Y, C, X+1, Y):- color(C), location(T, P, X, Y, C), location(T, P, X+1, Y, C). 
-same_color(T, P, X, Y, C, X-1, Y):- color(C), location(T, P, X, Y, C), location(T, P, X-1, Y, C). 
-same_color(T, P, X, Y, C, X, Y+1):- color(C), location(T, P, X, Y, C), location(T, P, X, Y+1, C). 
-same_color(T, P, X, Y, C, X, Y-1):- color(C), location(T, P, X, Y, C), location(T, P, X, Y-1, C). 
-
-%パス(reachable)の定義
-reachable(T,P,X,Y,C, X,  Y):- location(T,P,X,Y,C). %起点そのものを入れる
-reachable(T,P,X,Y,C, X1,Y1):- same_color(T,P,X,Y,C, X1,Y1). %直接つながっている
-reachable(T,P,X,Y,C, X1,Y1):- same_color(T,P,X,Y,C, Xt,Yt), reachable(T,P,Xt,Yt,C, X1,Y1). %間接的につながっている
-
-%
-%セルX,Y,Cの周囲とどれだけ同じ色があるか？（自分を含めている）
-%
-cnt_adj_cells(T,P,X,Y,C, Cnt):- location(T,P,X,Y,C), #count{ X1,Y1:reachable(T,P,X,Y,C,X1,Y1) } = Cnt.
-
-%
-%連鎖
-%
-chain_limit(10).
-step(1). %置いた状態：T = 1 --> この状態でdeletedを考える．
-
-%時刻T+1において，location(T,P,X,Y)は消える
-deleted(T+1, P, X, Y):- step(T), cnt_adj_cells(T, P, X, Y, C, Cnt), Cnt >= 4, P = me.
-
-%何か消えるセルがある--> その時間を作る．
-step(T+1):- step(T), deleted( T+1, _P, _, _), chain_limit(L), T < L.
-
-
-%次のタイムステップでの状態
-location(T+1, P, X, Y-Ydel, C):-%下で数え上げたY座標の分もともとあったぷよを下に落としている。
-	P = me,
-	step(T), T < #sup,
-	location(T, P, X, Y, C), not deleted( T+1, P, X, Y),
-	#count{Y1:cell_deleted_in_lower(T+1, P, X, Y, Y1)} = Ydel,%Xは固定して、Y的にもともとあるぷよの下に何個消えたぷよがあるかを数え上げている
-	chain_limit(L), T < L.
-	
-%Yより下で削除されるセル
-cell_deleted_in_lower(T+1,P,X,Y,  0):- step(T), T < #sup, Y = 0, location(T,P,X,Y, _), not deleted(T+1,P,X,Y).
-cell_deleted_in_lower(T+1,P,X,Y, Y1):- step(T), T < #sup, location(T,P,X,Y,_), not deleted(T+1,P,X,Y), deleted(T+1,P,X,Y1), Y1 < Y, Y > 0.
-
-max_step(MAX):- #max{ T:step(T) } = MAX. %時間ステップ%最終的なぷよの状態（step）のみで考えている。
-n_chain(MAX-1):- max_step(MAX). %連鎖数
-
-%max_step --> #infへ（連鎖後の集約に利用する）
-location(#sup, P, X, Y, C):- max_step(MAX), location(MAX, P, X, Y, C), P=me.%最終的な状態のlocationを用意している。
-
-%
-%fireの有無
-%
-is_fired :- n_chain(N), N > 0.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -705,63 +589,4 @@ n_in_formula(T, P, Cnt):- tp(T,P), #count{X,Y:in_formula(T,P,X,Y,_) } = Cnt.
 %変化
 diff_n_in_formula(P, N0-NMax):- P = me, max_step(T), n_in_formula(T, P, NMax), n_in_formula(0, P, N0).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%モード宣言
-
-%長さ１の仮説は排除
-#bias("
- :- not {body(_)} != 1.
-").
-
-#bias("
-  :- not head(_).
-").
-
-%putとlocationの宣言
-#modeh(1, put( var(player), var(cell_x), var(cell_y), var(color) ) ).
-#modeb(1, location( var(player), var(cell_x), var(cell_y), var(color) ) , (positive) ).
-
-#modeb(1, can_put( var(player), var(cell_x1), var(cell_y1), var(cell_x1), var(cell_y1)+1)).
-#modeb(1, can_put( var(player), var(cell_x1), var(cell_y1), var(cell_x1)+1, var(cell_y2))).
-
-
-#bias("
-    :- body( location(X,Y,Color) ), body( if_put(X,Y,Color) ).
-    :- body( location(X,Y,Color2) ), body( if_put(X,Y,Color) ).
-").
-
-#modeb(1, trigger ).
-#modeb(1, stacking( var(stack), var(cell_x), var(cell_y) ) , (positive) ).
-
-
-#modeb(1, part_of( stacking ( var(stack), var(cell_x), var(cell_y) ) ) , (positive) ).
-#modeb(1, after_stacking( stacking( var(stack), var(cell_x), var(cell_y) ) ) , (positive) ).
-
-#modeb(1, if_put(  var(cell_x), var(cell_y), var(color) ) , (positive) ).
-
-%連鎖が起きている盤面のみ使用。その連鎖から何連鎖発生するのか。
-#modeb(1, chain_count(  var(count) ) , (positive) ).
-
-
-#bias("
-  :- body( if_put(X,Y,Color) ) , body( stacking( Stacking, X, Y ) ).
-").
-
-
-%今は積みかたしかないので，摘んだ結果こういう連鎖が起きる
-%今は組み方しか入っていない
-%組み方関係なく連鎖はできるので，積みかたからこういう連鎖になるとかの述語を入れる．
-%あとは，定石があるとかではなく，色の密集度の述語をheadに持ってきて抽象度を高めるイメージ
-
-%一旦はこれでどこまで出てくるかを試して，その後に強化学習の
-%内部関数をこれに置き換えてうごかすor強化学習を動かして，動かした結果の抽出をやってみようとかになる．
-
-
-#maxv(5).
-
-%今現在のlocationに対してif_putしたら -: ~~定石になる
-%今の現在のlocationに対して~~定石にするためにはX,YにOO色がlackしている．
-%今現在のlocationに対してif_putしたら -: ~~定石の一部になる．
-%今現在のlocationに対してputしたので -: ~~定石になった
-%今現在のlocationに対して相手が発火したので -: 中連鎖を発火させた．
-%今現在のlocationに対してここがlackなので -: not ~~定石
+%%%%%%%%%%%%%%
